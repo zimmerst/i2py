@@ -1,4 +1,12 @@
 #-----------------------------------------------------------------------------
+# CHANGES FROM ORIGINAL VERSION (line numbers refer to unmodified file):
+#
+# 2005-04-16  Chris Stawarz  <chris@pseudogreen.org>
+#	* Modified lines 2033 and 2366 so that output files are written to the
+#	directory in which yacc.py resides, instead of in the current directory
+#-----------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------
 # ply: yacc.py
 #
 # Author(s): David M. Beazley (beazley@cs.uchicago.edu)

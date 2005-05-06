@@ -4,6 +4,9 @@
 # Setup script for i2py
 #
 
+# Make sure i2py/ytab.py exists and is up to date
+import i2py.parser
+
 from distutils.core import setup, Extension
 
 setup(name='i2py',

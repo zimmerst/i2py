@@ -307,6 +307,6 @@ structure_field
 
 build_productions()
 
-yacc.yacc(tabmodule='ytab', debugfile='y.output')
+yacc.yacc(debug=0, tabmodule='ytab', debugfile='y.output')
 parse = yacc.parse
 

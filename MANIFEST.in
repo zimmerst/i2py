@@ -1,3 +1,4 @@
 include AUTHORS
 include COPYING
-include examples/*
+include ChangeLog
+include NEWS
