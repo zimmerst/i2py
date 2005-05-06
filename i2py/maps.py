@@ -36,8 +36,6 @@ add_proc('ON_ERROR', inpars=[1],
          callfunc=(lambda i,o: '# ON_ERROR call omitted'))
 add_proc('PRINT', inpars=range(1,101), noptional=99,
          callfunc=(lambda i,o: 'print ' + ', '.join(i)))
-add_proc('RADEC', inpars=range(1,9))
-add_proc('READ', inpars=[1])
 
 def arrgen(typename):
    return (lambda i,o: 'zeros([%s], %s)' %
@@ -52,7 +50,6 @@ add_func('DOUBLE', pars=[1], callfunc=typeconv('Float64'))
 add_func('FIX', pars=[1], callfunc=typeconv('Int32'))
 add_func('FLOAT', pars=[1], callfunc=typeconv('Float32'))
 add_func('FLTARR', pars=range(1,9), noptional=7, callfunc=arrgen('Float32'))
-add_func('FSTRING', pars=[1,2], noptional=1)
 add_func('KEYWORD_SET', pars=[1],
          callfunc=(lambda i,o: '(%s is not None)' % i[0]))
 add_func('LONG', pars=[1], callfunc=typeconv('Int32'))
@@ -62,12 +59,9 @@ add_func('N_PARAMS', callfunc=(lambda i,o: 'n_params'))
 add_func('REPLICATE', pars=range(1,10), noptional=7,
          callfunc=(lambda i,o: '(%s)*ones([%s])' % (i[0],
 	           ', '.join([ i[n] for n in xrange(len(i)-1, 0, -1) ]))))
-add_func('ROUND', pars=[1])
 add_func('SIN', pars=[1])
-add_func('SIXTY', pars=[1])
-add_func('STRING', pyname='str', pars=[1,2], noptional=1)
-add_func('STRTRIM', pars=[1,2], noptional=1)
 
+# This would be nicer!
 #add_func('WHERE', pars=[1,2], noptional=1,
 #         callfunc=(lambda i,o: 'where(ravel(%s))[0]' % i[0]))
 

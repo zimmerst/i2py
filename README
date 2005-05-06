@@ -3,7 +3,7 @@ i2py:  Convert IDL programs and scripts to Python
 
 Author: Chris Stawarz <chris@pseudogreen.org>
 Version 0.0.9
-May 2, 2005
+May 7, 2005
 -------------------------------------------------
 
 ------
@@ -12,66 +12,4 @@ STATUS
 
    It works, but it's still in the alpha stage and rough around the edges.
 (Actually, it's rough all over the place...)
-
-----------------
-ORIGINAL PROPOSAL
-----------------
-
-As a final project for CS 568, I'd like to write a program that converts IDL 
-[1] source code to Python [2].
-
-IDL is a proprietary (and very expensive!) programming language and 
-data-analysis environment that is widely used in the astronomical community.  
-In particular, a large library of user-contributed astronomy software [3] is 
-available.  Currently, a community-based collaboration is working to create a 
-similar library for the open-source language Python [4].  An IDL-to-Python 
-converter could prove valuable to this effort by automating a substantial 
-amount of the conversion work.
-
-I would like to implement the converter in Python, using PLY [5] (a Python 
-implementation of lex and yacc) to generate the lexer and parser.  As an 
-example, given the IDL input
-
-pro vactoair,wave
-  On_error,2
-  if N_params() EQ 0 then begin
-    print,'Syntax - VACTOAIR, Wave'
-    return
-  endif
-  wave2 = double(wave)*wave
-  fact = 1.0 + 2.735182e-4 + 131.4182/wave2 + 2.76249e8/(wave2*wave2)
-  fact = fact * ( wave GE 2000. ) + 1.0*( wave LT 2000.0 )
-  wave = wave/fact
-  return
-end
-
-the converter would produce the following Python output:
-
-from numarray import *
-def vactoair(wave):
-   n_params = 1
-   def _ret():  return wave
-   # ON_ERROR call omitted
-   if n_params == 0:
-      print 'Syntax - VACTOAIR, Wave'
-      return _ret()
-   wave2 = array(wave, copy=False).astype(Float64) * wave
-   fact = 1.0 + 2.735182e-4 + 131.4182 / wave2 + 2.76249e8 / (wave2 * wave2)
-   fact = fact * (wave >= 2000.) + 1.0 * (wave < 2000.0)
-   wave = wave / fact
-   return _ret()
-
-Since the function-call semantics of IDL differ substantially from Python's 
-(all function parameters are input/output, whereas Python's are strictly 
-input-only), the user may need to provide a Python prototype for each IDL 
-function, specifying details such as which parameters are actually for output. 
- Otherwise, the conversion should be largely automatic.  I expect I'll be able 
-to parse and convert a large portion of the IDL grammar but will omit the 
-object-oriented facilities and some more obscure features.
-
-[1] http://www.rsinc.com/idl/
-[2] http://python.org/
-[3] http://idlastro.gsfc.nasa.gov/
-[4] http://www.scipy.org/wikis/topical_software/AstroLib
-[5] http://systems.cs.uchicago.edu/ply/
 
