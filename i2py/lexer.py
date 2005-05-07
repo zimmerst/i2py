@@ -148,7 +148,7 @@ def t_IDENTIFIER(t):
    return t
 
 def t_continuation(t):
-   r'\$\n'
+   r'\$\n*'
    t.lineno += 1
 
 # Need this to avoid treating '&&' as NEWLINE

@@ -26,7 +26,7 @@ use.
 
 from fmap import add_proc, add_func
 
-add_proc('MESSAGE', inpars=[1], inkeys=['informational'], extracode=(
+add_proc('MESSAGE', inpars=[1], inkeys=['informational', 'con'], extracode=(
 """def message(msg, informational=False):
    if informational:
       print msg
@@ -53,6 +53,8 @@ add_func('FLTARR', pars=range(1,9), noptional=7, callfunc=arrgen('Float32'))
 add_func('KEYWORD_SET', pars=[1],
          callfunc=(lambda i,o: '(%s is not None)' % i[0]))
 add_func('LONG', pars=[1], callfunc=typeconv('Int32'))
+add_func('MIN', pars=[1],
+         callfunc=(lambda i,o: 'array(%s, copy=False).min()' % i[0]))
 add_func('N_ELEMENTS', pars=[1],
          callfunc=(lambda i,o: 'array(%s, copy=False).size()' % i[0]))
 add_func('N_PARAMS', callfunc=(lambda i,o: 'n_params'))
