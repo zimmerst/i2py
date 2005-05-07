@@ -18,6 +18,8 @@
 #  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
+__version__ = '0.0.9'
+
 from parser import parse
 from fmap import add_proc, add_func
 from error import error_occurred, get_error_list, clear_error_list

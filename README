@@ -6,10 +6,46 @@ Version 0.0.9
 May 7, 2005
 -------------------------------------------------
 
+------------
+INTRODUCTION
+------------
+i2py provides tools for converting programs and scripts written in Research
+System Inc.'s IDL programming language to Python.  It is not an IDL-compatible
+front end for the Python interpreter, nor does it make any attempt to replicate
+the functionality of the IDL standard library.  Rather, its only purpose is to
+perform source-to-source conversion of legacy IDL code to Python.  Currently,
+it supports only procedural IDL, although support for object-oriented code may
+be added in the future.
+
+i2py is free software, distributed under the terms of the GNU General Public
+License.  See the file COPYING for details.
+
 ------
 STATUS
 ------
+This is an alpha release of i2py.  Although the code is functional, not all IDL
+language constructs can be converted yet, many parts of the code need review
+and revision, and the entire package needs extensive testing before it will be
+ready for production use.
 
-   It works, but it's still in the alpha stage and rough around the edges.
-(Actually, it's rough all over the place...)
+That said, if you're willing to try it out, any feedback (comments, bug
+reports, patches) will be greatly appreciated.  Please e-mail it to
+Chris Stawarz <chris@pseudogreen.org>.
+
+-------------------------
+INSTALLATION INSTRUCTIONS
+-------------------------
+To install the package, all you should need to do is
+
+  python setup.py install
+
+See "Installing Python Modules" (http://docs.python.org/inst/inst.html) for
+more information on using setup.py scripts.
+
+--------------------
+FOR MORE INFORMATION
+--------------------
+Web site:
+
+  http://software.pseudogreen.org/i2py/
 
