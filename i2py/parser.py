@@ -18,51 +18,38 @@
 #  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
+
 """
-This file contains the IDL grammar specification.  From the specification
-string, it generates the functions needed for PLY's yacc for each non-terminal
-symbol; each function generates a Node object of the appropriate subclass, as
-defined in ir.py.  Finally, it uses yacc to generate the parser.
+Defines the IDL grammar (productions and precedence rules) and generates the
+parser.  Also completes the ir module by adding some information that's
+automatically extracted from the grammar.
 """
 
-from lexer import *
+
+import os.path
+import error
+from lexer import lexer, tokens
 import yacc
 import ir
-import error
+import map
+try:
+   set
+except NameError:
+   from sets import Set as set  # Python 2.3
 
-def p_error(p):
-   msg = 'invalid syntax at %s' % repr(str(p.value))
-   if p.type == 'IDENTIFIER':
-      msg += ' (undeclared procedure or function?)'
-   error.syntax_error(msg, p.lineno)
 
-def build_productions():
-   funcdefs = []
-   classdefs = []
+################################################################################
+#
+# Grammar specification
+#
+################################################################################
 
-   for rule in productions.strip().split('\n\n'):
-      rulename = rule.split()[0]
-      funcname = 'p_' + rulename
-      classname = ''.join([ s.capitalize() for s in rulename.split('_') ])
-
-      if not hasattr(ir, classname):
-         classdefs.append('class %s(Node):  pass\n' % classname) 
-      else:
-	 cls = getattr(ir, classname)
-         if (not isinstance(cls, type)) or (not issubclass(cls, ir.Node)):
-	    raise ir.InternalError('object %s is not a Node' % classname)
-
-      funcdoc = rule.replace('\n\t', ' ', 1)
-      funcdefs.append('def %s(p):\n   \'\'\'%s\'\'\'\n   p[0] = ir.%s(p)\n' %
-                      (funcname, funcdoc, classname))
-
-   if classdefs:  exec ''.join(classdefs) in ir.__dict__
-   exec ''.join(funcdefs) in globals()
 
 precedence = (
-   ('nonassoc', 'LOWER_THAN_ELSE'),
-   ('nonassoc', 'ELSE'),
+   ('nonassoc', 'LOWER_THAN_ELSE', 'LOWER_THAN_KEYWORD'),
+   ('nonassoc', 'ELSE', 'KEYWORD'),
 )
+
 
 productions = '''
 translation_unit
@@ -76,21 +63,22 @@ program
 	| program subroutine_definition
 
 subroutine_definition
-	: PRO PRO_ID subroutine_body
-	| FUNCTION FUNCTION_ID subroutine_body
+	: PRO subroutine_body
+	| FUNCTION subroutine_body
 
 subroutine_body
-	: NEWLINE statement_list END NEWLINE
-	| parameter_list NEWLINE statement_list END NEWLINE
+	: IDENTIFIER NEWLINE statement_list END NEWLINE
+	| IDENTIFIER COMMA parameter_list NEWLINE statement_list END NEWLINE
 
 parameter_list
-	: COMMA parameter
+	: parameter
 	| parameter_list COMMA parameter
 
 parameter
 	: IDENTIFIER
 	| IDENTIFIER EQUALS IDENTIFIER
 	| EXTRA EQUALS IDENTIFIER
+	| EXTRA EQUALS EXTRA
 
 statement_list
 	: statement NEWLINE
@@ -109,24 +97,28 @@ compound_statement
 	| repeat_statement
 
 labeled_statement
-	: expression COLON statement
-	| expression COLON NEWLINE statement
+	: IDENTIFIER COLON statement
+	| IDENTIFIER COLON NEWLINE statement
 
 if_statement 
-	: IF expression THEN if_clause %prec LOWER_THAN_ELSE
-	| IF expression THEN if_clause ELSE else_clause 
+	: IF expression THEN if_clause			%prec LOWER_THAN_ELSE
+	| IF expression THEN if_clause ELSE else_clause %prec ELSE
 
 if_clause
 	: statement
 	| BEGIN NEWLINE statement_list ENDIF
+	| BEGIN NEWLINE statement_list END
 
 else_clause
 	: statement
 	| BEGIN NEWLINE statement_list ENDELSE
+	| BEGIN NEWLINE statement_list END
 
 selection_statement
 	: CASE selection_statement_body ENDCASE
+	| CASE selection_statement_body END
 	| SWITCH selection_statement_body ENDSWITCH
+	| SWITCH selection_statement_body END
 
 selection_statement_body
 	: expression OF NEWLINE selection_clause_list
@@ -144,6 +136,7 @@ selection_clause
 for_statement
 	: FOR for_index DO statement
 	| FOR for_index DO BEGIN NEWLINE statement_list ENDFOR
+	| FOR for_index DO BEGIN NEWLINE statement_list END
 
 for_index
 	: IDENTIFIER EQUALS expression COMMA expression
@@ -152,10 +145,12 @@ for_index
 while_statement
 	: WHILE expression DO statement
 	| WHILE expression DO BEGIN NEWLINE statement_list ENDWHILE
+	| WHILE expression DO BEGIN NEWLINE statement_list END
 
 repeat_statement
 	: REPEAT statement UNTIL expression
 	| REPEAT BEGIN NEWLINE statement_list ENDREP UNTIL expression
+	| REPEAT BEGIN NEWLINE statement_list END UNTIL expression
 
 simple_statement
 	: COMMON identifier_list
@@ -164,7 +159,8 @@ simple_statement
 	| ON_IOERROR COMMA IDENTIFIER
 	| jump_statement
 	| procedure_call
-	| expression
+	| assignment_statement
+	| increment_statement
 
 identifier_list
 	: IDENTIFIER
@@ -173,33 +169,41 @@ identifier_list
 jump_statement
 	: RETURN
 	| RETURN COMMA expression
-	| GOTO IDENTIFIER
+	| GOTO COMMA IDENTIFIER
 	| BREAK
 	| CONTINUE
 
 procedure_call
-	: PRO_ID
-	| PRO_ID COMMA argument_list
+	: IDENTIFIER
+	| IDENTIFIER COMMA argument_list
 
 argument_list
 	: argument
 	| argument_list COMMA argument
 
 argument
-	: expression
+	: expression			%prec LOWER_THAN_KEYWORD
+	| IDENTIFIER EQUALS expression	%prec KEYWORD
 	| DIVIDE IDENTIFIER
 	| EXTRA EQUALS IDENTIFIER
+	| EXTRA EQUALS EXTRA
 
-expression
-	: assignment_expression
-
-assignment_expression
-	: conditional_expression
-	| pointer_expression assignment_operator assignment_expression
+assignment_statement
+	: pointer_expression assignment_operator expression
 
 assignment_operator
 	: EQUALS
 	| OP_EQUALS
+
+increment_statement
+	: PLUSPLUS pointer_expression
+	| MINUSMINUS pointer_expression
+	| pointer_expression PLUSPLUS
+	| pointer_expression MINUSMINUS
+
+expression
+	: assignment_statement
+	| conditional_expression
 
 conditional_expression
 	: logical_expression
@@ -250,10 +254,7 @@ unary_expression
 	: pointer_expression
 	| PLUS pointer_expression
 	| MINUS pointer_expression
-	| PLUSPLUS pointer_expression
-	| MINUSMINUS pointer_expression
-	| pointer_expression PLUSPLUS
-	| pointer_expression MINUSMINUS
+	| increment_statement
 
 pointer_expression
 	: postfix_expression
@@ -262,8 +263,8 @@ pointer_expression
 postfix_expression
 	: primary_expression
 	| postfix_expression LBRACKET subscript_list RBRACKET
-	| FUNCTION_ID LPAREN RPAREN
-	| FUNCTION_ID LPAREN argument_list RPAREN
+	| IDENTIFIER LPAREN RPAREN
+	| IDENTIFIER LPAREN argument_list RPAREN
 	| postfix_expression DOT IDENTIFIER
 	| postfix_expression DOT LPAREN expression RPAREN
 
@@ -273,7 +274,7 @@ primary_expression
 	| constant
 	| LPAREN expression RPAREN
 	| LBRACKET expression_list RBRACKET
-	| LBRACE structure_field_list RBRACE
+	| LBRACE structure_body RBRACE
 
 constant
 	: NUMBER
@@ -295,18 +296,93 @@ expression_list
 	: expression
 	| expression_list COMMA expression
 
+structure_body
+	: structure_field_list
+	| IDENTIFIER COMMA structure_field_list
+	| IDENTIFIER
+
 structure_field_list
 	: structure_field
 	| structure_field_list COMMA structure_field
 
 structure_field
-	: expression
-	| expression COLON expression
+	: IDENTIFIER COLON expression
 	| INHERITS IDENTIFIER
 '''
 
-build_productions()
 
-yacc.yacc(debug=0, tabmodule='ytab', debugfile='y.output')
-parse = yacc.parse
+################################################################################
+#
+# Parser creation
+#
+################################################################################
+
+
+def p_error(p):
+   "Error function used by the parser"
+   error.syntax_error('invalid syntax at %s' % repr(str(p.value)), p.lineno)
+
+
+def build_productions():
+   """
+   From the productions string, creates the functions needed by yacc() to
+   generate the parser.  Also completes the hierarchy of Node classes in the
+   ir module by creating Node subclasses for all non-terminal symbols that
+   don't already have one and setting the _symbols field (the list of symbols
+   in the relevant production) in each Node subclass.
+   """
+
+   funcdefs = []
+   classdefs = []
+
+   for prod in productions.strip().split('\n\n'):
+      symbols = [ s for s in prod.split() if s not in (':', '|', '%prec') ]
+      prodname = symbols[0]
+      funcname = 'p_' + prodname
+      classname = ''.join([ s.capitalize() for s in prodname.split('_') ])
+
+      if not hasattr(ir, classname):
+         exec ('class %s(Node):  pass\n' % classname) in ir.__dict__
+      cls = getattr(ir, classname)
+      if (not isinstance(cls, type)) or (not issubclass(cls, ir.Node)):
+         raise error.InternalError('object %s is not a Node' % classname)
+      cls._symbols = set(symbols)
+
+      funcdoc = prod.replace('\n\t', ' ', 1)
+      funcdefs.append("def %s(p):\n   '''%s'''\n   p[0] = ir.%s(p)\n" %
+                      (funcname, funcdoc, classname))
+
+   exec ''.join(funcdefs) in globals()
+
+
+def parse(input, debug=False):
+   """
+   Parses the given input string (which must contain IDL code).  If the parsing
+   is successful, returns the root of the resulting abstract syntax tree;
+   otherwise, returns None.  If debug is true, any syntax errors will
+   produce parser debugging output.
+   """
+
+   # Reset global state stuff
+   error.clear_error_list()
+   map.clear_extra_code()
+   lexer.lineno = 1   # This needs to be reset manually (PLY bug?)
+
+   # Ensure that the input contains a final newline (the parser will choke
+   # otherwise)
+   if input[-1] != '\n':
+      input += '\n'
+
+   # Parse input and return the result
+   return parser.parse(input, lexer, debug)
+
+
+#
+# Create the parser
+#
+
+build_productions()
+parser = yacc.yacc(method='LALR', debug=True, tabmodule='ytab',
+                   debugfile='y.output', outputdir=os.path.dirname(__file__))
+
 
