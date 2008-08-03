@@ -1,20 +1,9 @@
 #-----------------------------------------------------------------------------
-# CHANGES FROM ORIGINAL VERSION (line numbers refer to unmodified file):
-#
-# 2005-04-16  Chris Stawarz  <chris@pseudogreen.org>
-#	* Modified lines 2033 and 2366 so that output files are written to the
-#	directory in which yacc.py resides, instead of in the current directory
-#-----------------------------------------------------------------------------
-
-#-----------------------------------------------------------------------------
 # ply: yacc.py
 #
-# Author(s): David M. Beazley (beazley@cs.uchicago.edu)
-#            Department of Computer Science
-#            University of Chicago
-#            Chicago, IL 60637
+# Author(s): David M. Beazley (dave@dabeaz.com)
 #
-# Copyright (C) 2001-2004, David M. Beazley
+# Copyright (C) 2001-2005, David M. Beazley
 #
 # $Header: /cvs/projects/PLY/yacc.py,v 1.6 2004/05/26 20:51:34 beazley Exp $
 #
@@ -59,7 +48,7 @@
 # own risk!
 # ----------------------------------------------------------------------------
 
-__version__ = "1.5"
+__version__ = "1.6"
 
 #-----------------------------------------------------------------------------
 #                     === User configurable parameters ===
@@ -554,7 +543,7 @@ class Production:
         self.lr1_added = 0    # Flag indicating whether or not added to LR1
         self.usyms = [ ]
         self.lookaheads = { }
-        self.lk_added = 0
+        self.lk_added = { }
         self.setnumbers = [ ]
         
     def __str__(self):
@@ -1510,15 +1499,16 @@ def lr1_closure(I, setnumber = 0):
             
             if jlr_index < len(jprod) - 1 and Nonterminals.has_key(jprod[jlr_index+1]):
                 first_syms = []
-                if j.lk_added < len(j.lookaheads[setnumber]):
-                    for a in j.lookaheads[setnumber][j.lk_added:]:
+
+                if j.lk_added.setdefault(setnumber, 0) < len(j.lookaheads[setnumber]): 
+                    for a in j.lookaheads[setnumber][j.lk_added[setnumber]:]: 
                         # find b in FIRST(Xa) if j = [A->a.BX,a]
                         temp_first_syms = first(jprodslice + (a,))
                         for x in temp_first_syms:
                             if x not in first_syms:
                                 first_syms.append(x)
 
-                j.lk_added = len(j.lookaheads[setnumber])
+                j.lk_added[setnumber] = len(j.lookaheads[setnumber]) 
 
                 for x in j.lrafter:
                     
@@ -1529,8 +1519,6 @@ def lr1_closure(I, setnumber = 0):
                             if s not in _xlook:
                                 _xlook.append(s)
                                 didadd = 1
-                            else:
-                                didadd = 0
                     else:        
                         x.lr_next.lookaheads[setnumber] = first_syms
                         didadd = 1
@@ -1556,16 +1544,14 @@ def add_lookaheads(K):
             for item in J:
                 if item.lr_index < len(item.prod)-1:
                     for lookahead in item.lookaheads[setnumber]:
+                        goto_setnumber = lr0_goto_setnumber(setnumber, item.prod[item.lr_index+1]) 
+                        next = None 
                         if lookahead != '#':
-                            goto_setnumber = lr0_goto_setnumber(setnumber, item.prod[item.lr_index+1])
-                            next = None
                             if item.lr_next in K[goto_setnumber]:
                                 next = item.lr_next
                             if next:
                                 spontaneous.append((next, (lookahead, goto_setnumber)))
                         else:
-                            goto_setnumber = lr0_goto_setnumber(setnumber, item.prod[item.lr_index+1])
-                            next = None
                             if goto_setnumber > -1:
                                 if item.lr_next in K[goto_setnumber]:
                                     next = item.lr_next
@@ -2037,8 +2023,8 @@ def lalr_parse_table():
 # This function writes the LR parsing tables to a file
 # -----------------------------------------------------------------------------
 
-def lr_write_tables(modulename=tab_module):
-    filename = os.path.join(os.path.dirname(__file__),modulename) + ".py"
+def lr_write_tables(modulename=tab_module,outputdir=''):
+    filename = os.path.join(outputdir,modulename) + ".py"
     try:
         f = open(filename,"w")
 
@@ -2170,7 +2156,7 @@ def lr_read_tables(module=tab_module,optimize=0):
 # Build the parser module
 # -----------------------------------------------------------------------------
 
-def yacc(method=default_lr, debug=yaccdebug, module=None, tabmodule=tab_module, start=None, check_recursion=1, optimize=0,write_tables=1,debugfile=debug_file):
+def yacc(method=default_lr, debug=yaccdebug, module=None, tabmodule=tab_module, start=None, check_recursion=1, optimize=0,write_tables=1,debugfile=debug_file,outputdir=''):
     global yaccdebug
     yaccdebug = debug
     
@@ -2367,11 +2353,11 @@ def yacc(method=default_lr, debug=yaccdebug, module=None, tabmodule=tab_module, 
                 raise YaccError, "Unknown parsing method '%s'" % method
 
             if write_tables:
-                lr_write_tables(tabmodule)        
+                lr_write_tables(tabmodule,outputdir)        
     
             if yaccdebug:
                 try:
-                    f = open(os.path.join(os.path.dirname(__file__),debugfile),"w")
+                    f = open(os.path.join(outputdir,debugfile),"w")
                     f.write(_vfc.getvalue())
                     f.write("\n\n")
                     f.write(_vf.getvalue())

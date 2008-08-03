@@ -1,3 +1,10 @@
-2005-05-07  Chris Stawarz  <chris@pseudogreen.org>
+2005-05-31  Chris Stawarz  <chris@pseudogreen.org>
+
+	* Added tutorial and other docs to distribution (suggested by Joe
+	Harrington)
+	* Modified setup.py to automatically generate pydoc docs when running
+	sdist
+
+2005-05-30  Chris Stawarz  <chris@pseudogreen.org>
 
 	* Initial alpha release

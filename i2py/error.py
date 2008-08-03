@@ -18,14 +18,46 @@
 #  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
+
 """
-This file defines error-handling classes and functions that are used throughout
-the package.
+Error-handling classes and functions
 """
 
+
+################################################################################
+#
+# Internal error handling
+#
+################################################################################
+
+
+class InternalError(Exception):
+   "An internal (i.e. implementation) error that should halt execution"
+   pass
+
+
+################################################################################
+#
+# Application error handling
+#
+################################################################################
+
+
+#
+# Error classes
+#
+
+# List where all Error objects store themselves
+_errors = []
+
 class Error(object):
+   """
+   A runtime error produced by invalid or unusable input that should be
+   handled and reported gracefully.  Upon creation, instances automatically
+   register themselves with the internal error list.
+   """
+
    def __init__(self, msg, lineno):
-      global _errors
       self.msg = msg
       self.lineno = lineno
       _errors.append(self)
@@ -35,25 +67,32 @@ class Error(object):
                              self.msg)
 
 class syntax_error(Error):
+   "Syntax error thrown during lexing or parsing"
    pass
 
 class conversion_error(Error):
+   "Conversion error thrown during code generation"
    pass
 
 class mapping_error(Error):
+   "Mapping error thrown during code generation"
    pass
 
+
+#
+# Error list management functions
+#
+
 def error_occurred():
-   if _errors:  return True
-   return False
+   "Returns a boolean indicating if any errors occurred"
+   return bool(_errors)
 
 def get_error_list():
-   return _errors
+   "Returns a copy of the error list"
+   return list(_errors)
 
 def clear_error_list():
+   "Clears the error list"
    global _errors
    _errors = []
-
-# Initialize error list
-clear_error_list()
 

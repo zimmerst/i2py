@@ -20,83 +20,145 @@
 #  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
-"""
-This script converts IDL source files to Python.  Currently, the converted file
-is written to the standard output.  Usage is
-
-   $ idl2python [-d] [--rcfile=<rcfilename>] <filename>
-
-If the '-d' option is given, the script dumps the parse tree as IDL code.  This
-is useful for checking whether the parsing was successful.
-
-If '--rcfile' is given, the specified file must contain Python source code that
-defines procedure and function mappings with add_proc() and add_func().  (See
-the file i2py/maps.py for examples.)  If '--rcfile' is not given, the script
-will look for a file named 'i2pyrc' or 'i2pyrc.py' in the current directory.
-If such a file exists, it will be used as the configuration file.
-"""
 
 import sys
-import getopt
-import fileinput
 import os.path
-
+from optparse import OptionParser
 import i2py
-from i2py import add_proc, add_func
 
-default_rcfile = 'i2pyrc'
-rcfile = None
-debug = False
 
-opts, args = getopt.getopt(sys.argv[1:], 'd', ['rcfile='])
-for o, v in opts:
-   if o == '--rcfile':
-      rcfile = v
-   if o == '-d':
-      debug = True
+################################################################################
+#
+# Process command-line options and arguments
+#
+################################################################################
 
-if not rcfile:
-   for f in [default_rcfile, default_rcfile + '.py']:
-      if os.path.isfile(f):
-         rcfile = f
-	 break
-if rcfile:
-   execfile(rcfile)
 
-exit_stat = 0
+# Create the OptionParser
+oparser = OptionParser(usage=('%prog [-d] [-s] [-r RCFILE] [-o OUTFILE] ' +
+                              'INFILE ...'),
+                       version=('%%prog %s' % i2py.__version__))
+oparser.add_option('-d', '--dump', action='store_true',
+                  help='dump parse tree to stdout as IDL code')
+oparser.add_option('-o', '--outfile', help='write all output to OUTFILE')
+oparser.add_option('-r', '--rcfile',
+                  help='get configuration from RCFILE instead of i2pyrc')
+oparser.add_option('-s', '--stdout', action='store_true',
+                   help='write output to stdout')
 
-def process_file(input):
-   global exit_stat
+# Parse the command line
+opts, args = oparser.parse_args()
 
-   input = ''.join(input)
-   prog = i2py.parse(input)
-   if prog:
-      if debug:
-         prog = str(prog).rstrip('\n')
+# Load the configuration file
+i2py.load_rcfile(opts.rcfile)
+
+# If no arguments or the single argument '-' were given, the input comes from
+# stdin
+if (len(args) == 0) or ((len(args) == 1) and (args[0] == '-')):
+   args = [sys.stdin]
+
+
+################################################################################
+#
+# Define some work functions
+#
+################################################################################
+
+
+#
+# Parses the contents of open file object infile and generates the output code.
+# If no errors occur, returns the output string.  Otherwise, prints the errors
+# to stderr (with infile.name prepended to each message) and returns None.
+#
+
+def process_input(infile):
+   output = i2py.parse(infile.read())
+
+   if output:
+      if opts.dump:
+         output = str(output)
       else:
-         prog = prog.pycode().rstrip('\n')
+         output = output.pycode()
 
-   if i2py.error_occurred():
-      for e in i2py.get_error_list():
-         sys.stderr.write('%s:%s\n' % (filename, e))
-      exit_stat = 1
-      i2py.clear_error_list()
-   else:
-      print prog
+   if (not output) or i2py.error_occurred():
+      for err in i2py.get_error_list():
+         sys.stderr.write('%s:%s\n' % (infile.name, err))
+      return None
 
-input = []
-for line in fileinput.input(args):
-   if fileinput.isfirstline():
-      # Process previous file
-      if input:  process_file(input)
+   return output
 
-      # Start new file
-      filename = fileinput.filename()
-      input = [line]
-   else:
-      input.append(line)
-else:
-   if input:  process_file(input)
 
+#
+# Returns infilename with the extension changed to '.py'.  Assumes infilename
+# has a non-empty basename (i.e. it's a file name, not a directory name).
+#
+
+def make_outfile_name(infilename):
+   dirname, basename = os.path.split(infilename)
+   dot_index = basename.rfind('.')
+   if dot_index > 0:
+      basename = basename[0:dot_index]
+   return os.path.join(dirname, basename + '.py')
+
+
+################################################################################
+#
+# Do the actual work
+#
+################################################################################
+
+
+exit_stat = 0    # Exit status
+outfile = None   # Output file object
+
+try:
+   for infilename in args:
+      #
+      # Process the input file
+      #
+
+      if infilename is sys.stdin:
+	 # Read from stdin
+         output = process_input(sys.stdin)
+      else:
+	 # Read from a file
+         infile = file(infilename, 'U')   # Open in universal newline mode
+         try:
+            output = process_input(infile)
+         finally:
+            infile.close()
+
+      #
+      # Write the output file
+      #
+
+      # If an error occurred, don't write any output
+      if not output:
+         exit_stat = 1
+         continue
+
+      if opts.outfile:
+	 # --outfile was given, so all output goes to the specified file
+         if not outfile:
+            outfile = file(opts.outfile, 'w')
+         outfile.write(output)
+      elif opts.dump or opts.stdout or (infilename is sys.stdin):
+	 # --dump or --stdout was given or the input came from stdin, so
+	 # the output goes to stdout
+         sys.stdout.write(output)
+      else:
+	 # Output goes to a file
+         outfile = file(make_outfile_name(infilename), 'w')
+         try:
+            outfile.write(output)
+         finally:
+            outfile.close()
+finally:
+   # If --outfile was given, close the output file
+   if opts.outfile and outfile:
+      outfile.close()
+
+# Done!
 sys.exit(exit_stat)
+
 

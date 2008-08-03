@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" >
+ <head>
+  <title>i2py: A Brief Tutorial</title>
+  <style type="text/css">
+   h1 {
+    text-align: center;
+   }
+
+   pre.code {
+    background-color: #cccccc;
+    border: thin solid black;
+    margin: 2em 3em 2em;
+    padding: 1em;
+   }
+  </style>
+ </head>
+ <body>
+
+  <h1>i2py: A Brief Tutorial</h1>
+
+  <h2>The Basics</h2>
+
+  <p>
+   Suppose you have an IDL procedure named <tt>FOO</tt> defined in the file
+   <tt>foo.pro</tt>:
+  </p>
+
+<pre class="code">$ cat foo.pro
+pro foo, n, sq, verbose=verb
+;+
+; A simple procedure that doesn't do much
+;-
+  sq = fltarr(n)  ; Output array
+  ; Do the computation
+  for i = 1L, long(n) do begin
+    sq[i-1] = sqrt(i)
+  endfor
+  if keyword_set(verb) then print, 'Processing complete'
+end
+</pre>
+
+  <p>
+   The simplest thing that <tt>idl2python</tt> (the command-line driver script
+   for <a href="i2py.html">i2py</a>) can do with this file is read it in, parse
+   it, and then reconstruct and print the IDL code.  You can tell it to do that
+   by passing it the <tt>-d</tt> option:
+  </p>
+
+<pre class="code">$ idl2python -d foo.pro
+PRO FOO, N, SQ, VERBOSE=VERB
+;+
+; A simple procedure that doesn't do much
+;-
+   SQ = FLTARR(N)  ; Output array
+   ; Do the computation
+   FOR I = 1L, LONG(N) DO BEGIN
+      SQ[I - 1] = SQRT(I)
+   ENDFOR
+   IF KEYWORD_SET(VERB) THEN PRINT, 'Processing complete'
+END
+</pre>
+
+  <p>
+   This is reassuring, but not particularly exciting.  The next step is to
+   generate some actual Python code.  If we pass <tt>idl2python</tt> the file
+   name <tt>foo.pro</tt> with no other arguments, it will create a file named
+   <tt>foo.py</tt> that contains the contents of <tt>foo.pro</tt> converted to
+   Python:
+  </p>
+
+<pre class="code">$ idl2python foo.pro
+$ cat foo.py
+from numarray import *
+
+def foo(n, sq, verbose=None):
+   """
+    A simple procedure that doesn't do much
+   """
+
+   n_params = 2
+   verb = verbose
+   _opt = (verb,)
+   def _ret():
+      _optrv = zip(_opt, [verb])
+      _rv = [n, sq]
+      _rv += [_o[1] for _o in _optrv if _o[0] is not None]
+      return tuple(_rv)
+
+   sq = zeros([n], Float32)  # Output array
+   # Do the computation
+   for i in arange(1, (array(n, copy=0).astype(Int32))+(1)):
+      sq[i - 1] = sqrt(i)
+   if (verb is not None):
+      print 'Processing complete'
+
+   return _ret()
+
+</pre>
+
+  <p>
+   We can then load <tt>foo.py</tt> in the Python interpreter and verify that
+   it compiles and runs:
+  </p>
+
+<pre class="code">&gt;&gt;&gt; import foo
+&gt;&gt;&gt; help(foo.foo)
+Help on function foo in module foo:
+
+foo(n, sq, verbose=None)
+    A simple procedure that doesn't do much
+
+&gt;&gt;&gt; foo.foo(2, None)
+(2, array([ 1.        ,  1.41421354], type=Float32))
+&gt;&gt;&gt; foo.foo(3, None, verbose=True)
+Processing complete
+(3, array([ 1.        ,  1.41421354,  1.73205078], type=Float32), True)
+</pre>
+
+  <h2>Adding a Configuration File</h2>
+
+  <p>
+   You may have noticed that the output of <tt>foo.foo()</tt> looks a bit
+   funny.  Specifically, the function is returning the final values of
+   <em>all</em> its parameters, even though two of them (<tt>n</tt> and
+   <tt>verbose</tt>) are strictly input parameters.
+  </p>
+
+  <p>
+   Although it seems strange, this behavior is intentional and is part of
+   i2py's attempt to make the converted function behave as much as possible
+   like the original IDL procedure.  In IDL procedures and functions, all
+   parameters and keywords can be used for both input and output.  This means
+   that, in most cases, a value assigned to a parameter within a procedure will
+   be accessible from the calling context after the procedure exits.
+  </p>
+
+  <p>
+   In Python, things work differently.  Although changes made to mutable
+   objects will persist after a function exits, assignments made to function
+   parameters have no effect on variable bindings in the calling context.
+   Instead, the values of local variables must be explicitly passed back to the
+   caller via a <tt>return</tt> statement.
+  </p>
+
+  <p>
+   Since i2py has no way of knowing whether <tt>foo</tt>'s parameters and
+   keywords are input or output, it takes the safest route and assumes that
+   they're both.  This is its standard behavior when converting IDL
+   procedures.  (The default for IDL functions is to treat all parameters and
+   keywords as input only.  The reason for this is that, unlike procedures,
+   functions can appear in expressions, where returning multiple values via a
+   tuple doesn't make sense.)
+  </p>
+
+  <p>
+   Although the default behavior is reasonable, it'd be better if we could tell
+   i2py what the purpose of each argument is so that the Python version of
+   <tt>foo</tt> doesn't return unneeded values.  We can do this via an i2py
+   rcfile (i.e. configuration file), which is simply a Python script that
+   contains i2py configuration directives.  For example, let's create a file
+   named <tt>i2pyrc.py</tt> (plain <tt>i2pyrc</tt> would also be okay) in the
+   same directory as <tt>foo.pro</tt>, with the following contents:
+  </p>
+
+<pre class="code">$ cat i2pyrc.py
+config.arraymodule = 'Numeric'
+map_pro('foo', inpars=[1], outpars=[2], inkeys=['verbose'])
+</pre>
+
+  <p>
+   The <tt>map_pro</tt> call defines a subroutine mapping for procedure
+   <tt>foo</tt>, which tells i2py that the first parameter and the keyword
+   <tt>verbose</tt> are input, and the second parameter is output.  Notice that
+   we've also changed the name of the array module i2py uses from the default
+   of <tt>numarray</tt> to <tt>Numeric</tt>.
+  </p>
+
+  <p>
+   If we now run <tt>idl2python</tt> again, it produces the following
+   <tt>foo.py</tt> file:
+  </p>
+
+<pre class="code">$ idl2python foo.pro
+$ cat foo.py
+from Numeric import *
+
+def foo(n, verbose=None):
+   """
+    A simple procedure that doesn't do much
+   """
+
+   n_params = 2
+   sq = None
+   verb = verbose
+   def _ret():  return sq
+
+   sq = zeros([n], Float32)  # Output array
+   # Do the computation
+   for i in arange(1, (array(n, copy=0).astype(Int32))+(1)):
+      sq[i - 1] = sqrt(i)
+   if (verb is not None):
+      print 'Processing complete'
+
+   return _ret()
+
+</pre>
+
+  <p>
+   We can load this file and verify that <tt>foo.foo()</tt> now behaves as
+   expected:
+  </p>
+
+<pre class="code">&gt;&gt;&gt; import foo
+&gt;&gt;&gt; help(foo.foo)
+Help on function foo in module foo:
+
+foo(n, verbose=None)
+    A simple procedure that doesn't do much
+
+&gt;&gt;&gt; foo.foo(2)
+array([ 1.        ,  1.41421354],'f')
+&gt;&gt;&gt; foo.foo(3, True)
+Processing complete
+array([ 1.        ,  1.41421354,  1.73205078],'f')
+</pre>
+
+  <h2>Where to Go From Here</h2>
+
+  <p>
+   In addition to <tt>map_pro</tt>, the functions <tt>map_func</tt> (for
+   mapping IDL functions) and <tt>map_var</tt> (for mapping IDL variables, e.g.
+   system constants) are available for use within an rcfile.  See
+   <a href="i2py.map.html"><tt>help(i2py.map)</tt></a> for details on how
+   they're used.  Also, the file <tt>maplib.py</tt> in the i2py distribution
+   contains a number of mappings for builtin variables and subroutines and is a
+   useful source of examples.
+  </p>
+
+  <p>
+   In addition to the array package, a few other things can be configured via
+   the <tt>config</tt> module.  See
+   <a href="i2py.config.html"><tt>help(i2py.config)</tt></a> for a listing.
+  </p>
+
+  <p>
+   That's all for now!
+  </p>
+
+ </body>
+</html>

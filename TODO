@@ -1,0 +1,51 @@
+Known Bugs
+----------
+- doc strings aren't extracted correctly if there are empty comment lines after
+  the ';-' one (need to strip those)
+- need to support strings with escaped ' and " characters
+
+Conversion
+----------
+- have option of producing "bad" output for unconvertible IDL constructs (JH)
+- implement structures
+- implement assignment and increment as expressions
+- figure out a way to preserve line breaks (and comments) with '$'
+
+Mappings
+--------
+- think of something to do with WHERE and other functions that use output
+  parameters/keywords
+
+
+IDL vs. Python issues to deal with
+----------------------------------
+- This is valid in IDL but not Python/numarray (you can index scalars in IDL):
+
+    a = 3
+    b = a[0]
+
+- This is really annoying:
+
+    IDL> print,-(3/2) eq (-3)/2
+       1
+
+    >>> -(3/2) == (-3)/2
+    False
+    >>> -(3/2), (-3)/2
+    (-1, -2)
+
+- What the *&$! is up with this?
+
+    IDL> for z = 1.0, 5.0, 1.0 do print, z
+          1.00000
+          2.00000
+          3.00000
+          4.00000
+          5.00000
+    IDL> for z = 0.1, 0.5, 0.1 do print, z
+         0.100000
+         0.200000
+         0.300000
+         0.400000
+    IDL>
+
