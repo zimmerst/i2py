@@ -37,6 +37,11 @@ def indent(obj, ntabs=1, tab=None):
    return pad + str(obj).replace('\n', '\n' + pad).rstrip(tab)
 
 
+def classdef(obj):
+   if hasattr(obj, 'classdef'):
+      return obj.classdef()
+   return [], [], ''
+
 def pycode(obj):
    """
    If obj has a pycode() method, returns the result of calling it.  Otherwise,
@@ -69,11 +74,16 @@ def pyname(name):
    """
    Converts name to a Python name by calling config.pynameconv() on it.  If the
    converted name begins with '!', the '!' is replaced by config.sysvarprefix.
+   Also, replaces "$" with the string "_dollar_".
    Returns the resulting name.
    """
    name = config.pynameconv(name)
    if name[0] == '!':
       name = config.sysvarprefix + name[1:]
+   name = name.replace('$', '_dollar_')
+   # As preparation for classes, replaces '::' and '->' with '.'
+   # name = name.replace('->', '.')
+   # name = name.replace('::', '.')
    return name
 
 

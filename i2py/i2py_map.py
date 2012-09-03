@@ -170,7 +170,7 @@ class SubroutineMapping(Mapping):
 
    def __init__(self, name, pyname=None, function=False,
                 inpars=(), outpars=(), noptional=0, inkeys=(), outkeys=(),
-		callfunc=None, extracode=None, readonly=False):
+		callfunc=None, extracode=None, readonly=False, method=False):
       """
       Creates a new SubroutineMapping.
 
@@ -220,8 +220,8 @@ class SubroutineMapping(Mapping):
 
       # Store input and output parameters
       self.inpars = tuple(inpars)
-      if outpars and function:
-         raise Error('functions cannot have output parameters')
+      #if outpars and function:
+      #   raise Error('functions cannot have output parameters')
       self.outpars = tuple(outpars)
 
       # Store number of parameters and validate parameter list
@@ -239,8 +239,8 @@ class SubroutineMapping(Mapping):
 
       # Store input and output keywords
       self.inkeys = tuple([ k.upper() for k in inkeys ])
-      if outkeys and function:
-         raise Error('functions cannot have output keywords')
+      #if outkeys and function:
+      #   raise Error('functions cannot have output keywords')
       self.outkeys = tuple([ k.upper() for k in outkeys ])
 
       # Store list of all keywords
@@ -254,11 +254,12 @@ class SubroutineMapping(Mapping):
       self.callfunc = callfunc
       self.extracode = extracode
       self.readonly = readonly
+      self.method = method
 
       # Register the mapping
       _subroutines[uc_name] = self
 
-   def pydef(self, pars=(), keys=()):
+   def pydef(self, pars=(), keys=(), extra=[]):
       """
       Creates the skeleton of the Python definition of the subroutine.
 
@@ -298,6 +299,8 @@ class SubroutineMapping(Mapping):
 
       # Required input parameters
       in_required = [ pars[i] for i in range(nrequired) if i+1 in self.inpars ]
+      if self.method:
+         in_required.insert(0, 'self')
 
       # Optional input parameters (also includes optional output-only
       # parameters because the function needs to accept a boolean argument
@@ -305,9 +308,14 @@ class SubroutineMapping(Mapping):
       in_optional = ([ pars[i] for i in range(nrequired, self.npars)
                        if (i+1 in self.inpars) or (i+1 in self.outpars) ])
 
+      # import ipdb; ipdb.set_trace()
+      # If 'extra' is given, add "**"+extra to end of parameter list
+      if extra:
+         extra = [ '**' + extra ]
+
       # Build the parameter list and function header
       params = ', '.join(in_required + [ p + '=None' for p in in_optional ] +
-			 [ k[0] + '=None' for k in keys ])
+			 [ k[0] + '=None' for k in keys ] + extra)
       header = 'def %s(%s):' % (self.pyname(), params)
 
       # Add code to define n_params (which replaces IDL's N_PARAMS function)
@@ -347,38 +355,37 @@ class SubroutineMapping(Mapping):
          if len(out_optional) == 1:  body += ','   # Single-item tuple
 	 body += ')'
 
-      if not self.function:
-	 #
-	 # Since all output values must be explicitly returned by the Python
-	 # function, we create a local function '_ret' that returns a tuple of
-	 # all the function's return values.  IDL return statements in the
-	 # subroutine become 'return _ret()' in Python.
-	 #
-	 # Since the Python version of an IDL function cannot have output
-	 # parameters/keywords, this is necessary only for procedures.
-	 #
+      #
+      # Since all output values must be explicitly returned by the Python
+      # function, we create a local function '_ret' that returns a tuple of
+      # all the function's return values.  IDL return statements in the
+      # subroutine become 'return _ret()' in Python.
+      #
+      # The Python versions of both IDL function and procedures can have
+      # output parameters/keywords
+      #
 
-         body += '\ndef _ret():'
+      body += '\ndef _ret():'
 
-         if (not out) and (not out_optional):
-	    # No output values
-            body += '  return None'
-         elif out and (not out_optional):
-	    # Output values but no optional ones
-	    if len(out) == 1:
-	       body += '  return %s' % out[0]
-	    else:
-	       body += '  return (%s)' % ', '.join(out)
+      if (not out) and (not out_optional):
+         # No output values
+         body += '  return None'
+      elif out and (not out_optional):
+         # Output values but no optional ones
+         if len(out) == 1:
+            body += '  return %s' % out[0]
          else:
-	    # Output values, some or all of which are optional
-	    retbody = '_optrv = zip(_opt, [%s])\n' % ', '.join(out_optional)
-	    if out:
-	       retbody += '_rv = [%s]\n_rv += ' % ', '.join(out)
-	    else:
-	       retbody += '_rv = '
-	    retbody += '[_o[1] for _o in _optrv if _o[0] is not None]'
-	    retbody += '\nreturn tuple(_rv)'
-	    body += '\n' + util.pyindent(retbody)
+            body += '  return (%s)' % ', '.join(out)
+      else:
+         # Output values, some or all of which are optional
+         retbody = '_optrv = zip(_opt, [%s])\n' % ', '.join(out_optional)
+         if out:
+            retbody += '_rv = [%s]\n_rv += ' % ', '.join(out)
+         else:
+            retbody += '_rv = '
+         retbody += '[_o[1] for _o in _optrv if _o[0] is not None]'
+         retbody += '\nreturn tuple(_rv)'
+         body += '\n' + util.pyindent(retbody)
          
       # Add a final newline
       body += '\n'
@@ -497,7 +504,7 @@ class SubroutineMapping(Mapping):
 
 def map_pro(name, pyname=None, inpars=(), outpars=(), noptional=0,
             inkeys=(), outkeys=(), callfunc=None, extracode=None,
-	    readonly=False):
+	    method=False, readonly=False):
    """
    Creates and returns a new SubroutineMapping for an IDL procedure, passing
    the given arguments to the constructor
@@ -505,20 +512,21 @@ def map_pro(name, pyname=None, inpars=(), outpars=(), noptional=0,
    return SubroutineMapping(name, pyname=pyname, function=False,
                             inpars=inpars, outpars=outpars, noptional=noptional,
                             inkeys=inkeys, outkeys=outkeys, callfunc=callfunc,
-			    extracode=extracode, readonly=readonly)
+                            method=method, extracode=extracode, readonly=readonly)
 
 
-def map_func(name, pyname=None, inpars=(), noptional=0, inkeys=(),
-             callfunc=None, extracode=None, readonly=False):
+def map_func(name, pyname=None, inpars=(), outpars=(), noptional=0,
+             inkeys=(), outkeys=(), callfunc=None, extracode=None,
+             method=False, readonly=False):
    """
    Creates and returns a new SubroutineMapping for an IDL function, passing
-   the given arguments to the constructor.  Note that unlike procedure
-   mappings, function mappings cannot have output parameters/keywords.
+   the given arguments to the constructor.  Note that like procedure
+   mappings, function mappings can have output parameters/keywords.
    """
    return SubroutineMapping(name, pyname=pyname, function=True,
-                            inpars=inpars, noptional=noptional, inkeys=inkeys,
-			    callfunc=callfunc, extracode=extracode,
-			    readonly=readonly)
+                            inpars=inpars, outpars=outpars, noptional=noptional,
+                            inkeys=inkeys, outkeys=outkeys, callfunc=callfunc,
+                            method=method, extracode=extracode, readonly=readonly)
 
 
 def get_subroutine_map(name):

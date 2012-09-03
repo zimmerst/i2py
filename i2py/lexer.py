@@ -39,9 +39,11 @@ import error
 
 
 tokens = {
-  't_STRING'		: r"""('[^'\n]*')|("[^"\n]*")""",
+  # 't_STRING'		: r"""('[^'\n]*')|("[^"\n]*")""",
 
   't_MINUSMINUS'	: r'--',
+  't_ARROW'	        : r'->',
+  't_DCOLON'	        : r'::',
   't_PIPEPIPE'		: r'\|\|',
   't_PLUSPLUS'		: r'\+\+',
   't_POUNDPOUND'	: r'\#\#',
@@ -74,9 +76,9 @@ tokens = tuple([ t[2:] for t in tokens.keys() ])
 
 keywords = (
   'AND', 'BEGIN', 'BREAK', 'CASE', 'COMMON', 'COMPILE_OPT', 'CONTINUE', 'DO',
-  'ELSE', 'END', 'ENDCASE', 'ENDELSE', 'ENDFOR', 'ENDIF', 'ENDREP', 'ENDSWITCH',
-  'ENDWHILE', 'EQ', 'FOR', 'FORWARD_FUNCTION', 'FUNCTION', 'GE', 'GOTO', 'GT',
-  'IF', 'INHERITS', 'LE', 'LT', 'MOD', 'NE', 'NOT', 'OF', 'ON_IOERROR', 'OR',
+  'ELSE', 'END', 'ENDCASE', 'ENDELSE', 'ENDFOR', 'ENDFOREACH', 'ENDIF', 'ENDREP', 'ENDSWITCH',
+  'ENDWHILE', 'EQ', 'FOR', 'FOREACH', 'FORWARD_FUNCTION', 'FUNCTION', 'GE', 'GOTO', 'GT',
+  'IF', 'INHERITS', 'LE', 'LT', 'MOD', 'NE', 'NOT', 'OF', 'OR',
   'PRO', 'REPEAT', 'RETURN', 'SWITCH', 'THEN', 'UNTIL', 'WHILE', 'XOR',
 )
 
@@ -91,22 +93,40 @@ tokens += keywords
 
 
 tokens += (
-  'AMPAMP', 'EXTRA', 'IDENTIFIER', 'NEWLINE', 'NUMBER', 'OP_EQUALS', 'SYS_VAR',
+  'AMPAMP', 'EXTRA', 'IDENTIFIER', 'NEWLINE', 'NUMBER', 'OP_EQUALS', 'STRING', 'SYS_VAR',
 )
 
+def t_STRING(t):
+   r"""
+      (?: ('[^'\n]*(?:''[^'\n]*)*') |
+          ("[^"\n]*(?:""[^"\n]*)*") ) (?![xob])
+   """
+
+   # IDL literal strings uses doubled quotation marks to escape quotes inside strings,
+   # e.g. 'foo''bar' => "foo'bar"
+   g = string_re.match(t.value).groups()
+   if g[0]:
+      if len(g[0]) > 2:
+          t.value = g[0].replace("''", "\\'")
+   else:
+      if len(g[1]) > 2:
+          t.value = g[1].replace('""', '\\"')
+   return t
+
+string_re = re.compile(t_STRING.__doc__, re.VERBOSE|re.IGNORECASE)
 
 def t_NUMBER(t):
    r"""
      (?P<float>
-       (?P<dec> (\d+\.\d+) | (\d+\.) | (\.\d+) | ( \d+ (?=[eEdD]) ) )
+       (?P<dec> (\d+\.\d+) | (\d+\.) | (\.\d+) | ( \d+ (?=[ed]) ) )
        (?P<exp>
-         (?P<expchar> [eEdD] )
+         (?P<expchar> [ed] )
          (?P<expval>  [+-]?\d+ )?
        )?
      ) |
      (?P<integer>
-       (?P<val>  (\d+) | ('[a-fA-F\d]+'[xX]) | ('[0-7]+'[oO]) | ("[0-7]+) )
-       (?P<type> [bB] | ( [uU]? ( [sS] | [lL][lL]? )? ) )?
+       (?P<val>  (\d+) | ('[a-f\d]+'x) | ('[0-7]+'o) | ("[0-7]+) | '[01]+'b )
+       (?P<type> b | ( u? ( s | LL? )? ) )?
      )
    """
    t.value = ir.Number(number_re.match(t.value.upper()).groupdict())
@@ -114,22 +134,22 @@ def t_NUMBER(t):
 
 # Leaving group tags in the RE for t_NUMBER will confuse the lexer, so we
 # compile and store the RE and then strip the tags from the doc string
-number_re = re.compile(t_NUMBER.__doc__, re.VERBOSE)
+number_re = re.compile(t_NUMBER.__doc__, re.VERBOSE|re.IGNORECASE)
 t_NUMBER.__doc__ = re.sub(r'\?P<\w+>', '', t_NUMBER.__doc__)
 
 
 def t_OP_EQUALS(t):
    r'''
-     ([aA][nN][dD]=)	|
-     ([mM][oO][dD]=)	|
-     ([xX][oO][rR]=)	|
-     ([eE][qQ]=)	|
-     ([gG][eE]=)	|
-     ([gG][tT]=)	|
-     ([lL][eE]=)	|
-     ([lL][tT]=)	|
-     ([nN][eE]=)	|
-     ([oO][rR]=)	|
+     (and=)		|
+     (mod=)		|
+     (xor=)		|
+     (eq=)		|
+     (ge=)		|
+     (gt=)		|
+     (le=)		|
+     (lt=)		|
+     (ne=)		|
+     (or=)		|
      (\#\#=)		|
      (\+=)		|
      (-=)		|
@@ -145,14 +165,16 @@ def t_OP_EQUALS(t):
 
 
 def t_EXTRA(t):
-   r'(_[rR][eE][fF])?_[eE][xX][tT][rR][aA]'
+   r'(_ref)?_extra'
    t.value = t.value.upper()
    return t
 
 
 # Handles identifiers, system variables, and keywords
 def t_IDENTIFIER(t):
-   r'!?[a-zA-Z][\w$]*'
+   r'!?[a-z][\w$]*'
+   #r'!?[a-z][\w$]*((::|->|\.)[a-z][\w$]*)*'
+   #r'(!|[a-z][\w$]*(::|->|\.))?[a-z][\w$]*'
 
    if t.value.upper() in keywords:
       t.value = t.value.upper()
@@ -162,9 +184,7 @@ def t_IDENTIFIER(t):
       value = str(t.value)
       if value[0] == "!":
          t.type = 'SYS_VAR'
-
    return t
-
 
 def t_continuation(t):
    r'\$([ \t]*(;.*)?\n)+'
@@ -192,7 +212,8 @@ def t_whitespace(t):
 
 
 def t_error(t):
-   error.syntax_error('illegal character: %s' % repr(t.value[0]), t.lineno)
+   error.syntax_error('illegal character: %s\n  next: %s' \
+        % (repr(t.value[0]), repr(t.value[0:50])), t.lineno)
    t.skip(1)
 
 
@@ -203,6 +224,6 @@ def t_error(t):
 ################################################################################
 
 
-lexer = lex.lex()
+lexer = lex.lex(reflags=re.IGNORECASE)
 
 

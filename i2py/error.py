@@ -61,6 +61,7 @@ class Error(object):
       self.msg = msg
       self.lineno = lineno
       _errors.append(self)
+      #raise RuntimeError(self.msg)
 
    def __str__(self):
       return '%d: %s: %s' % (self.lineno, type(self).__name__.replace('_', ' '),
