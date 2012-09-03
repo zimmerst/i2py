@@ -2,19 +2,21 @@ Known Bugs
 ----------
 - doc strings aren't extracted correctly if there are empty comment lines after
   the ';-' one (need to strip those)
-- need to support strings with escaped ' and " characters
 
 Conversion
 ----------
 - have option of producing "bad" output for unconvertible IDL constructs (JH)
-- implement structures
+  (partially implemented by TG, but as behaviour, not optional)
 - implement assignment and increment as expressions
+  (not sure this can be done in Python)
 - figure out a way to preserve line breaks (and comments) with '$'
 
 Mappings
 --------
 - think of something to do with WHERE and other functions that use output
   parameters/keywords
+
+
 
 
 IDL vs. Python issues to deal with
@@ -35,6 +37,7 @@ IDL vs. Python issues to deal with
     (-1, -2)
 
 - What the *&$! is up with this?
+  (TG: This is binary floating-point inability to represent 0.1 exactly)
 
     IDL> for z = 1.0, 5.0, 1.0 do print, z
           1.00000

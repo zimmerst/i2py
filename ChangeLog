@@ -1,3 +1,11 @@
+2012-09-03  Tom Grydeland <tom.grydeland@norut.no>
+        * Changed to PLY 3.4 by David Beazley
+        * Many changes to grammar
+        * Allow output keywords from functions
+        * Add some support for structs
+        * Add some support for objects and classes
+        * Add some support for inheritance
+
 2005-05-31  Chris Stawarz  <chris@pseudogreen.org>
 
 	* Added tutorial and other docs to distribution (suggested by Joe

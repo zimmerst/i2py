@@ -2,8 +2,9 @@
 i2py:  Convert IDL programs and scripts to Python
 
 Author: Chris Stawarz <chris@pseudogreen.org>
-Version 0.1.0
-May 30, 2005
+Author: Tom Grydeland <tom.grydeland@norut.no>
+Version 0.1.x
+September, 2012
 -------------------------------------------------
 
 ------------
@@ -13,9 +14,9 @@ i2py provides tools for converting programs and scripts written in Research
 System Inc.'s IDL programming language to Python.  It is not an IDL-compatible
 front end for the Python interpreter, nor does it make any attempt to replicate
 the functionality of the IDL standard library.  Rather, its only purpose is to
-perform source-to-source conversion of legacy IDL code to Python.  Currently,
-it supports only procedural IDL, although support for object-oriented code may
-be added in the future.
+perform source-to-source conversion of legacy IDL code to Python.  It supports
+procedural IDL, with some support for object-oriented code, as long as it is
+not too complex. More sophistication may be added in the future.
 
 i2py is free software, distributed under the terms of the GNU General Public
 License.  See the file COPYING for details.
@@ -29,7 +30,7 @@ extensive testing and debugging before it will be ready for production use.
 
 That said, if you're willing to try it out, any feedback (comments, bug
 reports, patches) will be greatly appreciated.  Please e-mail it to
-Chris Stawarz <chris@pseudogreen.org>.
+Chris Stawarz <chris@pseudogreen.org> or Tom Grydeland <tom.grydeland@norut.no>.
 
 ------------
 REQUIREMENTS
@@ -43,9 +44,8 @@ lexing and parsing.  The needed modules are distributed with i2py, so there is
 no need to install PLY separately.
 
 The scripts produced by i2py require one of the array packages available for
-Python.  Currently, the options are Numeric and numarray (numarray being the
-default), but scipy_core may soon be the preferred alternative.  For a
-discussion of the various packages available, see http://numeric.scipy.org/.
+Python.  Currently, Numpy is the default.  For a discussion of the various
+packages available, see http://numeric.scipy.org/.
 
 -------------------------
 INSTALLATION INSTRUCTIONS
